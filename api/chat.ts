@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { retrieveRelevantKnowledge } from '../server/knowledge/retriever.js';
-import { answerLocalQuestion } from '../server/knowledge/knowledgeEngine.js';
+import { answerLocalQuestion, getLocalAnswerIfConfident } from '../server/knowledge/knowledgeEngine.js';
 
 export default async function handler(req: any, res: any) {
   // CORS preflight
@@ -27,6 +27,12 @@ export default async function handler(req: any, res: any) {
 
   if (!isLoaded) {
     return res.status(500).json({ error: 'Knowledge base is currently unavailable.' });
+  }
+
+  const localAnswer = getLocalAnswerIfConfident(userQuestion);
+  if (localAnswer) {
+    const completedAt = new Date().toISOString();
+    return res.json({ answer: localAnswer, mode: 'local', timestamp: completedAt });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;

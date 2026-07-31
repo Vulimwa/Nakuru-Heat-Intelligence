@@ -281,6 +281,20 @@ function getLandCoverTable(document: KnowledgeDocument): KnowledgeTable | null {
   return firstTable(document, ['mean siuhi 2021', 'mean siuhi 2026'], ['siuhi by land cover', 'land cover']);
 }
 
+function getSiuhiStatsTable(document: KnowledgeDocument): KnowledgeTable | null {
+  return firstTable(document, ['minimum siuhi', 'maximum siuhi', 'mean siuhi', 'standard deviation'], ['siuhi statistics', 'siuhi statistics']);
+}
+
+function getMeanSiuhiValue(document: KnowledgeDocument, year: string): number | null {
+  const table = getSiuhiStatsTable(document);
+  if (!table) return null;
+  const yearIndex = table.headers.findIndex((header) => normalize(header).includes('year'));
+  const meanIndex = table.headers.findIndex((header) => normalize(header).includes('mean siuhi'));
+  if (yearIndex < 0 || meanIndex < 0) return null;
+  const row = table.rows.find((row) => normalize(row[yearIndex]).includes(normalize(year)));
+  return row ? extractNumber(row[meanIndex]) : null;
+}
+
 function getLakeDistanceTable(document: KnowledgeDocument): KnowledgeTable | null {
   return firstTable(document, ['distance band', 'siuhi 2026'], ['lake nakuru', 'lake area']);
 }
@@ -407,6 +421,39 @@ function answerLandCoverHottest(document: KnowledgeDocument, year: string): stri
   return `${bestCover} was the hottest land-cover category in ${year}, with a mean SIUHI of ${formatNumber(bestValue)}.`;
 }
 
+function answerLandCoverCoolest(document: KnowledgeDocument, year: string): string {
+  const table = getLandCoverTable(document);
+  if (!table) {
+    return "I couldn't find the land-cover SIUHI table in the knowledge base.";
+  }
+  const yearHeader = table.headers.find((header) => normalize(header).includes(normalize(year)));
+  if (!yearHeader) {
+    return `I couldn't find ${year} land-cover SIUHI data in the knowledge base.`;
+  }
+  const idx = table.headers.indexOf(yearHeader);
+  let bestCover = '';
+  let bestValue = Infinity;
+  for (const row of table.rows) {
+    const value = extractNumber(row[idx]);
+    if (value !== null && value < bestValue) {
+      bestValue = value;
+      bestCover = row[0];
+    }
+  }
+  if (!bestCover) {
+    return `I couldn't identify the coolest land cover in ${year} from the knowledge base.`;
+  }
+  return `${bestCover} was the coolest land-cover category in ${year}, with a mean SIUHI of ${formatNumber(bestValue)}.`;
+}
+
+function answerMeanSiuhiYear(document: KnowledgeDocument, year: string): string {
+  const value = getMeanSiuhiValue(document, year);
+  if (value === null) {
+    return `I couldn't find the mean SIUHI for ${year} in the current knowledge base.`;
+  }
+  return `The mean SIUHI in ${year} was ${formatNumber(value)}.`;
+}
+
 function answerLandCoverTrend(document: KnowledgeDocument): string {
   const table = getLandCoverTable(document);
   if (!table) {
@@ -519,6 +566,29 @@ function formatManagedAnswer(answer: string): string {
   return `${answer.trim()}\n\nSource: Nakuru Urban Heat Observatory knowledge base.`;
 }
 
+function isGenericLocalAnswer(answer: string): boolean {
+  const normalized = answer.toLowerCase();
+  const genericTriggers = [
+    'this knowledge base documents',
+    "i couldn't find enough information",
+    "i couldn't find",
+    'currently unavailable',
+    'ambiguous',
+    'i don\'t currently have',
+    'could not find',
+    'no exact answer',
+  ];
+  return genericTriggers.some((trigger) => normalized.includes(trigger));
+}
+
+export function getLocalAnswerIfConfident(question: string): string | null {
+  const answer = answerLocalQuestion(question);
+  if (!answer || isGenericLocalAnswer(answer)) {
+    return null;
+  }
+  return answer;
+}
+
 export function answerLocalQuestion(question: string): string {
   const document = getKnowledgeDocument();
   if (!document) {
@@ -548,12 +618,24 @@ export function answerLocalQuestion(question: string): string {
     return formatManagedAnswer(answerLargestVeryHighYear(document));
   }
 
+  if (intent === 'heat_statistics' && normalized.includes('mean') && normalized.includes('2026')) {
+    return formatManagedAnswer(answerMeanSiuhiYear(document, '2026'));
+  }
+
   if (intent === 'heat_area' && normalized.includes('very high') && normalized.includes('2025')) {
     return formatManagedAnswer(answerHeatAreaYear(document, '2025', 'Very High'));
   }
 
   if (intent === 'population_exposure' && normalized.includes('very high') && normalized.includes('2026')) {
     return formatManagedAnswer(answerPopulationExposure(document, '2026', 'Very High'));
+  }
+
+  if (intent === 'land_cover' && normalized.includes('hottest') && normalized.includes('2026')) {
+    return formatManagedAnswer(answerLandCoverHottest(document, '2026'));
+  }
+
+  if (intent === 'land_cover' && normalized.includes('coolest') && normalized.includes('2026')) {
+    return formatManagedAnswer(answerLandCoverCoolest(document, '2026'));
   }
 
   if (intent === 'land_cover' && normalized.includes('hottest') && normalized.includes('2021')) {
