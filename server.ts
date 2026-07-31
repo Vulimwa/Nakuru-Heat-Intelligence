@@ -5,7 +5,7 @@ import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 import { loadKnowledgeBase } from './server/knowledge/loader.js';
 import { retrieveRelevantKnowledge } from './server/knowledge/retriever.js';
-import { generateLocalFallbackAnswer } from './server/knowledge/fallback.js';
+import { answerLocalQuestion } from './server/knowledge/knowledgeEngine.js';
 
 dotenv.config();
 
@@ -124,9 +124,8 @@ ${contextText}`;
         timestamp: completedAt,
       });
     } catch (error) {
-      console.warn('Gemini API request failed, falling back to local knowledge mode:', error);
-      // Fallback automatically to local retrieval with high precision completion timestamp
-      const fallbackAnswer = generateLocalFallbackAnswer(userQuestion);
+      console.warn('Gemini API request failed, falling back to local mode:', error);
+      const fallbackAnswer = answerLocalQuestion(userQuestion);
       const completedAt = new Date().toISOString();
       return res.json({
         answer: fallbackAnswer,
@@ -136,7 +135,7 @@ ${contextText}`;
     }
   } else {
     // Local knowledge mode when Gemini key is missing
-    const fallbackAnswer = generateLocalFallbackAnswer(userQuestion);
+    const fallbackAnswer = answerLocalQuestion(userQuestion);
     const completedAt = new Date().toISOString();
     return res.json({
       answer: fallbackAnswer,
