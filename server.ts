@@ -1,11 +1,14 @@
-import express from 'express';
-import path from 'node:path';
-import dotenv from 'dotenv';
-import { GoogleGenAI } from '@google/genai';
-import { createServer as createViteServer } from 'vite';
-import { loadKnowledgeBase } from './server/knowledge/loader.js';
-import { retrieveRelevantKnowledge } from './server/knowledge/retriever.js';
-import { answerLocalQuestion, getLocalAnswerIfConfident } from './server/knowledge/knowledgeEngine.js';
+import express from "express";
+import path from "node:path";
+import dotenv from "dotenv";
+import { GoogleGenAI } from "@google/genai";
+import { createServer as createViteServer } from "vite";
+import { loadKnowledgeBase } from "./server/knowledge/loader.js";
+import { retrieveRelevantKnowledge } from "./server/knowledge/retriever.js";
+import {
+  answerLocalQuestion,
+  getLocalAnswerIfConfident,
+} from "./server/knowledge/knowledgeEngine.js";
 
 dotenv.config();
 
@@ -16,34 +19,36 @@ app.use(express.json());
 
 // Enable iframe embedding from any parent application (such as ArcGIS Dashboards)
 app.use((_req, res, next) => {
-  res.removeHeader('X-Frame-Options');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.setHeader('Content-Security-Policy', "frame-ancestors *");
+  res.removeHeader("X-Frame-Options");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Content-Security-Policy", "frame-ancestors *");
   next();
 });
 
 // API status endpoint
-app.get('/api/status', (_req, res) => {
+app.get("/api/status", (_req, res) => {
   const { loaded } = loadKnowledgeBase();
   const apiKey = process.env.GEMINI_API_KEY;
-  const hasGeminiKey = Boolean(apiKey && apiKey !== 'MY_GEMINI_API_KEY' && apiKey.trim().length > 0);
+  const hasGeminiKey = Boolean(
+    apiKey && apiKey !== "MY_GEMINI_API_KEY" && apiKey.trim().length > 0,
+  );
 
   res.json({
     knowledgeConnected: loaded,
     geminiEnabled: hasGeminiKey,
-    mode: hasGeminiKey ? 'gemini' : 'local',
+    mode: hasGeminiKey ? "gemini" : "local",
   });
 });
 
 // API chat endpoint
-app.post('/api/chat', async (req, res) => {
+app.post("/api/chat", async (req, res) => {
   const { message } = req.body || {};
 
-  if (!message || typeof message !== 'string' || !message.trim()) {
+  if (!message || typeof message !== "string" || !message.trim()) {
     return res.status(400).json({
-      error: 'Please enter a valid question.',
+      error: "Please enter a valid question.",
     });
   }
 
@@ -52,18 +57,24 @@ app.post('/api/chat', async (req, res) => {
 
   if (!isLoaded) {
     return res.status(500).json({
-      error: 'Knowledge base is currently unavailable.',
+      error: "Knowledge base is currently unavailable.",
     });
   }
 
   const localAnswer = getLocalAnswerIfConfident(userQuestion);
   if (localAnswer) {
     const completedAt = new Date().toISOString();
-    return res.json({ answer: localAnswer, mode: 'local', timestamp: completedAt });
+    return res.json({
+      answer: localAnswer,
+      mode: "local",
+      timestamp: completedAt,
+    });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
-  const isGeminiAvailable = Boolean(apiKey && apiKey !== 'MY_GEMINI_API_KEY' && apiKey.trim().length > 0);
+  const isGeminiAvailable = Boolean(
+    apiKey && apiKey !== "MY_GEMINI_API_KEY" && apiKey.trim().length > 0,
+  );
 
   if (isGeminiAvailable) {
     try {
@@ -71,7 +82,7 @@ app.post('/api/chat', async (req, res) => {
         apiKey: apiKey,
         httpOptions: {
           headers: {
-            'User-Agent': 'aistudio-build',
+            "User-Agent": "aistudio-build",
           },
         },
       });
@@ -104,7 +115,7 @@ SUPPLIED KNOWLEDGE BASE CONTEXT:
 ${contextText}`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: "gemini-3.6-flash",
         contents: userQuestion,
         config: {
           systemInstruction,
@@ -112,13 +123,16 @@ ${contextText}`;
         },
       });
 
-      let answerText = response.text ? response.text.trim() : '';
+      let answerText = response.text ? response.text.trim() : "";
 
       // Strip any accidental emojis or unicode symbols if present
-      answerText = answerText.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '');
+      answerText = answerText.replace(
+        /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu,
+        "",
+      );
 
       if (!answerText) {
-        throw new Error('Gemini returned an empty response.');
+        throw new Error("Gemini returned an empty response.");
       }
 
       // Capture high-precision completion timestamp at the exact moment backend processing completes
@@ -126,16 +140,19 @@ ${contextText}`;
 
       return res.json({
         answer: answerText,
-        mode: 'gemini',
+        mode: "gemini",
         timestamp: completedAt,
       });
     } catch (error) {
-      console.warn('Gemini API request failed, falling back to local mode:', error);
+      console.warn(
+        "Gemini API request failed, falling back to local mode:",
+        error,
+      );
       const fallbackAnswer = answerLocalQuestion(userQuestion);
       const completedAt = new Date().toISOString();
       return res.json({
         answer: fallbackAnswer,
-        mode: 'local',
+        mode: "local",
         timestamp: completedAt,
       });
     }
@@ -145,29 +162,31 @@ ${contextText}`;
     const completedAt = new Date().toISOString();
     return res.json({
       answer: fallbackAnswer,
-      mode: 'local',
+      mode: "local",
       timestamp: completedAt,
     });
   }
 });
 
 async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: 'spa',
+      appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.get("*", (_req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Nakuru Heat Intelligence server listening on http://localhost:${PORT}`);
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(
+      `Nakuru Heat Intelligence server listening on http://localhost:${PORT}`,
+    );
   });
 }
 
