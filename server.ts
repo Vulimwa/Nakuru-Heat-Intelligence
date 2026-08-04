@@ -1,7 +1,6 @@
 import express from "express";
 import path from "node:path";
 import dotenv from "dotenv";
-import { GoogleGenAI } from "@google/genai";
 import { createServer as createViteServer } from "vite";
 import { loadKnowledgeBase } from "./server/knowledge/loader.js";
 import { retrieveRelevantKnowledge } from "./server/knowledge/retriever.js";
@@ -9,6 +8,10 @@ import {
   answerLocalQuestion,
   getLocalAnswerIfConfident,
 } from "./server/knowledge/knowledgeEngine.js";
+import {
+  getOpenRouterAnswer,
+  getOpenRouterApiKey,
+} from "./server/openrouter.js";
 
 dotenv.config();
 
@@ -30,15 +33,12 @@ app.use((_req, res, next) => {
 // API status endpoint
 app.get("/api/status", (_req, res) => {
   const { loaded } = loadKnowledgeBase();
-  const apiKey = process.env.GEMINI_API_KEY;
-  const hasGeminiKey = Boolean(
-    apiKey && apiKey !== "MY_GEMINI_API_KEY" && apiKey.trim().length > 0,
-  );
+  const hasOpenRouterKey = Boolean(getOpenRouterApiKey());
 
   res.json({
     knowledgeConnected: loaded,
-    geminiEnabled: hasGeminiKey,
-    mode: hasGeminiKey ? "gemini" : "local",
+    llmEnabled: hasOpenRouterKey,
+    mode: hasOpenRouterKey ? "openrouter" : "local",
   });
 });
 
@@ -62,38 +62,21 @@ app.post("/api/chat", async (req, res) => {
   }
 
   const localAnswer = getLocalAnswerIfConfident(userQuestion);
-  if (localAnswer) {
-    const completedAt = new Date().toISOString();
-    return res.json({
-      answer: localAnswer,
-      mode: "local",
-      timestamp: completedAt,
-    });
-  }
+  const fallbackAnswer = localAnswer || answerLocalQuestion(userQuestion);
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  const isGeminiAvailable = Boolean(
-    apiKey && apiKey !== "MY_GEMINI_API_KEY" && apiKey.trim().length > 0,
-  );
+  const isOpenRouterAvailable = Boolean(getOpenRouterApiKey());
 
-  if (isGeminiAvailable) {
+  if (isOpenRouterAvailable) {
     try {
-      const ai = new GoogleGenAI({
-        apiKey: apiKey,
-        httpOptions: {
-          headers: {
-            "User-Agent": "aistudio-build",
-          },
-        },
-      });
-
       const systemInstruction = `You are Nakuru Heat Intelligence, an AI research assistant for the Nakuru Urban Heat Observatory.
 
-Answer questions using the supplied Nakuru Urban Heat Observatory knowledge base.
+Answer questions using the supplied Nakuru Urban Heat Observatory knowledge base as the primary source. Use the retrieved context to identify and reason over the relevant findings.
 
 The knowledge base contains authoritative project results, including SIUHI statistics (2021-2026), heat class areas, population exposure, land cover thermal relationships, spatial cooling association around Lake Nakuru, urban cooling interventions, and guides & recommendations for heat management.
 
 Do not invent numerical values or unverified facts.
+
+If the supplied context does not answer a question, you may provide a concise, generally accepted explanation. Clearly state that it is general information and is not a finding from the Nakuru Observatory. Never present general knowledge as project data.
 
 If asked for urban cooling interventions, recommendations, or guides, refer to the Nature-Based Solutions, Built-Environment retrofits, and planning guidelines in the knowledge base.
 
@@ -114,41 +97,21 @@ Use clean plain text or clean bullet points without any emojis or raw bold stars
 SUPPLIED KNOWLEDGE BASE CONTEXT:
 ${contextText}`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
-        contents: userQuestion,
-        config: {
-          systemInstruction,
-          temperature: 0.2,
-        },
-      });
-
-      let answerText = response.text ? response.text.trim() : "";
-
-      // Strip any accidental emojis or unicode symbols if present
-      answerText = answerText.replace(
-        /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu,
-        "",
-      );
-
-      if (!answerText) {
-        throw new Error("Gemini returned an empty response.");
-      }
+      const answerText = await getOpenRouterAnswer(systemInstruction, userQuestion);
 
       // Capture high-precision completion timestamp at the exact moment backend processing completes
       const completedAt = new Date().toISOString();
 
       return res.json({
         answer: answerText,
-        mode: "gemini",
+        mode: "openrouter",
         timestamp: completedAt,
       });
     } catch (error) {
       console.warn(
-        "Gemini API request failed, falling back to local mode:",
-        error,
+        "OpenRouter API request failed, falling back to local mode:",
+        error instanceof Error ? error.message : error,
       );
-      const fallbackAnswer = answerLocalQuestion(userQuestion);
       const completedAt = new Date().toISOString();
       return res.json({
         answer: fallbackAnswer,
@@ -157,8 +120,7 @@ ${contextText}`;
       });
     }
   } else {
-    // Local knowledge mode when Gemini key is missing
-    const fallbackAnswer = answerLocalQuestion(userQuestion);
+    // Local knowledge mode when the OpenRouter key is missing
     const completedAt = new Date().toISOString();
     return res.json({
       answer: fallbackAnswer,

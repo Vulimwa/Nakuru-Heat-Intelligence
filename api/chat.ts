@@ -1,9 +1,12 @@
-import { GoogleGenAI } from "@google/genai";
 import { retrieveRelevantKnowledge } from "../server/knowledge/retriever.js";
 import {
   answerLocalQuestion,
   getLocalAnswerIfConfident,
 } from "../server/knowledge/knowledgeEngine.js";
+import {
+  getOpenRouterAnswer,
+  getOpenRouterApiKey,
+} from "../server/openrouter.js";
 
 export default async function handler(req: any, res: any) {
   // CORS preflight
@@ -35,44 +38,28 @@ export default async function handler(req: any, res: any) {
   }
 
   const localAnswer = getLocalAnswerIfConfident(userQuestion);
-  if (localAnswer) {
-    const completedAt = new Date().toISOString();
-    return res.json({
-      answer: localAnswer,
-      mode: "local",
-      timestamp: completedAt,
-    });
-  }
+  const fallbackAnswer = localAnswer || answerLocalQuestion(userQuestion);
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  const isGeminiAvailable = Boolean(
-    apiKey && apiKey !== "MY_GEMINI_API_KEY" && apiKey.trim().length > 0,
-  );
+  const isOpenRouterAvailable = Boolean(getOpenRouterApiKey());
 
-  if (isGeminiAvailable) {
+  if (isOpenRouterAvailable) {
     try {
-      const ai = new GoogleGenAI({ apiKey: apiKey });
+      const systemInstruction = `You are Nakuru Heat Intelligence, an AI research assistant for the Nakuru Urban Heat Observatory.
 
-      const systemInstruction = `You are Nakuru Heat Intelligence, an AI research assistant for the Nakuru Urban Heat Observatory.\n\nAnswer questions using the supplied Nakuru Urban Heat Observatory knowledge base.\n\nSUPPLIED KNOWLEDGE BASE CONTEXT:\n${contextText}`;
+Answer questions using the supplied Nakuru Urban Heat Observatory knowledge base as the primary source. Use the retrieved context to identify and reason over the relevant findings. Do not invent numerical values or unverified facts. If the context does not answer a question, you may provide a concise, generally accepted explanation, clearly labelled as general information rather than a Nakuru Observatory finding. Distinguish SIUHI from air temperature. When discussing population exposure, do not claim that exposure values represent health outcomes. When discussing Lake Nakuru, distinguish spatial association from causation. Give concise, structured answers first, followed by supporting values or bullet points. Use clean plain text or clean bullet points without emojis or raw bold stars.
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
-        contents: userQuestion,
-        config: { systemInstruction, temperature: 0.2 },
-      });
-
-      let answerText = response.text ? response.text.trim() : "";
-      if (!answerText) throw new Error("Gemini returned an empty response.");
+SUPPLIED KNOWLEDGE BASE CONTEXT:
+${contextText}`;
+      const answerText = await getOpenRouterAnswer(systemInstruction, userQuestion);
 
       const completedAt = new Date().toISOString();
       return res.json({
         answer: answerText,
-        mode: "gemini",
+        mode: "openrouter",
         timestamp: completedAt,
       });
     } catch (error) {
-      console.warn("Gemini API failed, falling back to local mode:", error);
-      const fallbackAnswer = answerLocalQuestion(userQuestion);
+      console.warn("OpenRouter API failed, falling back to local mode:", error instanceof Error ? error.message : error);
       const completedAt = new Date().toISOString();
       return res.json({
         answer: fallbackAnswer,
@@ -83,7 +70,6 @@ export default async function handler(req: any, res: any) {
   }
 
   // Local fallback
-  const fallbackAnswer = answerLocalQuestion(userQuestion);
   const completedAt = new Date().toISOString();
   return res.json({
     answer: fallbackAnswer,

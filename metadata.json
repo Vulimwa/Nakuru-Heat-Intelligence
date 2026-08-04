@@ -2,5 +2,5 @@
   "name": "Nakuru Heat Intelligence",
   "description": "AI knowledge assistant for the Nakuru Urban Heat Observatory (2021–2026)",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_OPENROUTER_API"]
 }

@@ -1,4 +1,5 @@
 import { loadKnowledgeBase } from '../server/knowledge/loader.js';
+import { getOpenRouterApiKey } from '../server/openrouter.js';
 
 export default function handler(_req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -13,9 +14,8 @@ export default function handler(_req: any, res: any) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { content, loaded } = loadKnowledgeBase();
-  const apiKey = process.env.GEMINI_API_KEY;
-  const hasGeminiKey = Boolean(apiKey && apiKey !== 'MY_GEMINI_API_KEY' && apiKey.trim().length > 0);
+  const { loaded } = loadKnowledgeBase();
+  const hasOpenRouterKey = Boolean(getOpenRouterApiKey());
 
-  return res.json({ knowledgeConnected: loaded, geminiEnabled: hasGeminiKey, mode: hasGeminiKey ? 'gemini' : 'local' });
+  return res.json({ knowledgeConnected: loaded, llmEnabled: hasOpenRouterKey, mode: hasOpenRouterKey ? 'openrouter' : 'local' });
 }

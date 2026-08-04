@@ -1,26 +1,32 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Message, StatusState, ChatResponse } from './types';
-import { Header } from './components/Header';
-import { StatusIndicator } from './components/StatusIndicator';
-import { ChatWindow } from './components/ChatWindow';
-import { ChatInput } from './components/ChatInput';
-import { BookOpen, HelpCircle, Info, Sparkles, ShieldCheck } from 'lucide-react';
+import { useState, useEffect, useCallback } from "react";
+import { Message, StatusState, ChatResponse } from "./types";
+import { Header } from "./components/Header";
+import { StatusIndicator } from "./components/StatusIndicator";
+import { ChatWindow } from "./components/ChatWindow";
+import { ChatInput } from "./components/ChatInput";
+import {
+  BookOpen,
+  HelpCircle,
+  Info,
+  Sparkles,
+  ShieldCheck,
+} from "lucide-react";
 
 const STARTER_QUESTIONS = [
-  'What was the mean SIUHI in 2026?',
-  'How did Very High heat area change from 2021 to 2026?',
-  'How many people were exposed to Very High heat in 2026?',
-  'Which land-cover type was hottest in 2026?',
-  'What does the Lake Nakuru cooling analysis show?',
-  'What urban cooling interventions are recommended?',
-  'What guides exist for urban heat management?',
+  "What was the mean SIUHI in 2026?",
+  "How did Very High heat area change from 2021 to 2026?",
+  "How many people were exposed to Very High heat in 2026?",
+  "Which land-cover type was hottest in 2026?",
+  "What does the Lake Nakuru cooling analysis show?",
+  "What urban cooling interventions are recommended?",
+  "What guides exist for urban heat management?",
 ];
 
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: 'welcome_msg',
-      sender: 'assistant',
+      id: "welcome_msg",
+      sender: "assistant",
       text: "Welcome to Nakuru Heat Intelligence, the research assistant for the Nakuru Urban Heat Observatory (2021–2026).\n\nI can answer questions regarding:\n- SIUHI statistics (2021–2026)\n- Heat class area changes & population heat exposure\n- Urban heat hotspots (Persistent, New, and No Longer Very High)\n- Land cover thermal relationships & Lake Nakuru spatial cooling\n- Urban cooling interventions & sustainable heat management guides\n\nHow can I assist your research today?",
       timestamp: new Date(),
     },
@@ -28,8 +34,8 @@ export default function App() {
 
   const [status, setStatus] = useState<StatusState>({
     knowledgeConnected: true,
-    geminiEnabled: false,
-    mode: 'local',
+    llmEnabled: false,
+    mode: "local",
     loading: false,
   });
 
@@ -38,13 +44,13 @@ export default function App() {
   const checkStatus = useCallback(async () => {
     setStatus((prev) => ({ ...prev, loading: true }));
     try {
-      const res = await fetch('/api/status');
+      const res = await fetch("/api/status");
       if (res.ok) {
         const data = await res.json();
         setStatus({
           knowledgeConnected: Boolean(data.knowledgeConnected),
-          geminiEnabled: Boolean(data.geminiEnabled),
-          mode: data.mode || 'local',
+          llmEnabled: Boolean(data.llmEnabled),
+          mode: data.mode || "local",
           loading: false,
         });
       } else {
@@ -64,7 +70,7 @@ export default function App() {
 
     const userMessage: Message = {
       id: `user_${Date.now()}`,
-      sender: 'user',
+      sender: "user",
       text: userText,
       timestamp: new Date().toISOString(),
     };
@@ -73,10 +79,10 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
+      const res = await fetch("/api/chat", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ message: userText }),
       });
@@ -86,7 +92,7 @@ export default function App() {
       if (res.ok && data.answer) {
         const assistantMessage: Message = {
           id: `assistant_${Date.now()}`,
-          sender: 'assistant',
+          sender: "assistant",
           text: data.answer,
           timestamp: data.timestamp || new Date().toISOString(),
         };
@@ -94,8 +100,10 @@ export default function App() {
       } else {
         const errorMessage: Message = {
           id: `error_${Date.now()}`,
-          sender: 'assistant',
-          text: data.error || 'An unexpected error occurred while communicating with the knowledge assistant.',
+          sender: "assistant",
+          text:
+            data.error ||
+            "An unexpected error occurred while communicating with the knowledge assistant.",
           isError: true,
           timestamp: new Date().toISOString(),
         };
@@ -104,8 +112,8 @@ export default function App() {
     } catch {
       const errorMessage: Message = {
         id: `error_${Date.now()}`,
-        sender: 'assistant',
-        text: 'Network error: Unable to reach the Nakuru Heat Intelligence server. Please check your connection.',
+        sender: "assistant",
+        text: "Network error: Unable to reach the Nakuru Heat Intelligence server. Please check your connection.",
         isError: true,
         timestamp: new Date().toISOString(),
       };
@@ -122,7 +130,6 @@ export default function App() {
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Bento Grid Container */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          
           {/* Left Sidebar Bento Column */}
           <div className="lg:col-span-4 flex flex-col gap-5">
             {/* Bento Card 1: Knowledge Status Indicator */}
@@ -145,17 +152,27 @@ export default function App() {
               </div>
 
               <p className="text-xs text-slate-600 leading-relaxed">
-                An AI knowledge assistant analyzing Surface Urban Heat Island (SIUHI) intensity, population heat exposure, land cover dynamics, and urban cooling interventions in Nakuru City.
+                An AI knowledge assistant analyzing Surface Urban Heat Island
+                (SIUHI) intensity, population heat exposure, land cover
+                dynamics, and urban cooling interventions in Nakuru City.
               </p>
 
               <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-[11px]">
                 <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
-                  <span className="block text-slate-400 text-[10px]">Study Period</span>
-                  <span className="font-semibold text-slate-800">2021 – 2026</span>
+                  <span className="block text-slate-400 text-[10px]">
+                    Study Period
+                  </span>
+                  <span className="font-semibold text-slate-800">
+                    2021 – 2026
+                  </span>
                 </div>
                 <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
-                  <span className="block text-slate-400 text-[10px]">2026 High Heat Exp.</span>
-                  <span className="font-semibold text-slate-800">375,647 residents</span>
+                  <span className="block text-slate-400 text-[10px]">
+                    2026 High Heat Exp.
+                  </span>
+                  <span className="font-semibold text-slate-800">
+                    375,647 residents
+                  </span>
                 </div>
               </div>
             </div>
@@ -187,7 +204,6 @@ export default function App() {
 
           {/* Right Main Bento Chat Container */}
           <div className="lg:col-span-8 flex flex-col rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden min-h-[620px] h-[calc(100vh-140px)]">
-            
             {/* Chat Top Banner */}
             <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -212,11 +228,12 @@ export default function App() {
 
             {/* Chat Input Bar */}
             <div className="p-4 bg-white border-t border-slate-100">
-              <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+              <ChatInput
+                onSendMessage={handleSendMessage}
+                isLoading={isLoading}
+              />
             </div>
-
           </div>
-
         </div>
 
         {/* Global Footer */}
@@ -224,7 +241,8 @@ export default function App() {
           <div className="flex items-center justify-center gap-1.5">
             <Info className="h-3.5 w-3.5 text-slate-400" />
             <span>
-              Nakuru Urban Heat Observatory (2021–2026) · SIUHI describes surface thermal conditions, not air temperature.
+              Nakuru Urban Heat Observatory (2021–2026) · SIUHI describes
+              surface thermal conditions, not air temperature.
             </span>
           </div>
         </footer>
@@ -232,4 +250,3 @@ export default function App() {
     </div>
   );
 }
-
